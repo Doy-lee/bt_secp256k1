@@ -29,7 +29,6 @@ definitive explanations).
 #define ECMULT_GEN_PREC_BITS 4
 #define ECMULT_WINDOW_SIZE 15
 #include "bt_secp256k1_i64.h"
-#include <stdio.h>
 ```
 
 ## Details

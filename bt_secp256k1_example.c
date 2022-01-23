@@ -4,6 +4,10 @@
 #define BT_SECP256K1_IMPLEMENTATION
 // NOTE: The 2 following defines are optional! We provide a default value if
 // these are not defined before the implementation
+#define ENABLE_MODULE_ECDH
+#define ENABLE_MODULE_RECOVERY
+#define ENABLE_MODULE_EXTRAKEYS
+#define ENABLE_MODULE_SCHNORRSIG
 #define ECMULT_GEN_PREC_BITS 4
 #define ECMULT_WINDOW_SIZE 15
 

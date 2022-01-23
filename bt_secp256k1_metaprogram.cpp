@@ -46,11 +46,11 @@ struct StringList { String string; StringList *next; };
 
 struct LoadedFile
 {
-    unsigned  flag;
-    char     *buffer;
-    int       size;
-    String    sub_dir;
-    String    name;
+    unsigned  flag;              // Corresponds to FileFlag enum
+    String    buffer;            // The contents of the file loaded from disk
+    String    sub_dir;           // The sub directory that the file orginated from
+    String    name;              // The file name
+    String    module_macro_name; // For secp256k1 modules, the name of the C macro used to identify the file
 };
 
 FILE_SCOPE bool LoadFiles(LoadedFile *files, int file_count, char const *root_dir)
@@ -69,8 +69,8 @@ FILE_SCOPE bool LoadFiles(LoadedFile *files, int file_count, char const *root_di
             snprintf(file_path, sizeof(file_path), "%s/%.*s", root_dir, file->name.size, file->name.str);
         }
 
-        file->buffer = ReadEntireFile(file_path, &file->size);
-        if (!file->buffer || file->size == 0)
+        file->buffer.str = ReadEntireFile(file_path, &file->buffer.size);
+        if (!file->buffer.str || file->buffer.size == 0)
         {
             fprintf(stderr, "Failed to load file [file=%s]\n", file_path);
             result = false;
@@ -100,6 +100,17 @@ FILE_SCOPE StringList *StringListAppendRef(StringList *list, String string)
             *result    = {};
         }
         result->string = string;
+    }
+    return result;
+}
+
+FILE_SCOPE StringList *StringListAppendCopy(StringList *list, String string)
+{
+    StringList *result = list;
+    if (string.str && string.size)
+    {
+        String copy = StringCopy(string);
+        result      = StringListAppendRef(result, copy);
     }
     return result;
 }
@@ -211,7 +222,10 @@ FILE_SCOPE String StringReplace(String src, String find, String replace)
 
 StringList *AddSourceFileComment(StringList *tail, LoadedFile const *file)
 {
-    StringList *result = StringListAppendRef(tail, STRING("\n// File: "));
+    StringList *result = StringListAppendRef(tail, STRING(
+    "// -----------------------------------------------------------------------------\n"
+    "// File: "
+    ));
     if (file->sub_dir.size)
     {
         result = StringListAppendRef(result, file->sub_dir);
@@ -220,6 +234,7 @@ StringList *AddSourceFileComment(StringList *tail, LoadedFile const *file)
 
     result = StringListAppendRef(result, file->name);
     result = StringListAppendRef(result, STRING("\n"));
+    result = StringListAppendRef(result, STRING("// -----------------------------------------------------------------------------\n"));
 
     return result;
 }
@@ -232,61 +247,76 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    // NOTE: Load files into memory
     LoadedFile intro_files[] = {
-        {FileFlag_Normal, nullptr, 0, STRING(""), STRING("COPYING")},
+        {FileFlag_Normal, nullptr, 0, STRING(""), STRING("COPYING"), STRING("")},
     };
 
     LoadedFile header_files[] = {
-        {FileFlag_Normal, nullptr, 0, STRING("include"), STRING("secp256k1.h")},
-        {FileFlag_Normal, nullptr, 0, STRING("include"), STRING("secp256k1_preallocated.h")},
+        {FileFlag_Normal, nullptr, 0, STRING("include"), STRING("secp256k1.h"), STRING("")},
+        {FileFlag_Normal, nullptr, 0, STRING("include"), STRING("secp256k1_preallocated.h"), STRING("")},
+    };
+
+    LoadedFile extra_module_header_files[] = {
+        {FileFlag_Normal, nullptr, 0, STRING("include"), STRING("secp256k1_ecdh.h"), STRING("ECDH")},
+        {FileFlag_Normal, nullptr, 0, STRING("include"), STRING("secp256k1_recovery.h"), STRING("RECOVERY")},
+        {FileFlag_Normal, nullptr, 0, STRING("include"), STRING("secp256k1_extrakeys.h"), STRING("EXTRAKEYS")},
+        {FileFlag_Normal, nullptr, 0, STRING("include"), STRING("secp256k1_schnorrsig.h"), STRING("SCHNORRSIG")},
     };
 
     LoadedFile private_header_files[] = {
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("util.h")},
-        {FileFlag_Mul64Support,  nullptr, 0, STRING("src"), STRING("field_10x26.h")},
-        {FileFlag_Mul64Support,  nullptr, 0, STRING("src"), STRING("scalar_8x32.h")},
-        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("field_5x52.h")},
-        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("scalar_4x64.h")},
-        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("modinv64.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("hash.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("modinv32.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("assumptions.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("scalar.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("field.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("group.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_const.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_gen.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("scratch.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("precomputed_ecmult.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("precomputed_ecmult_gen.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecdsa.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("eckey.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("selftest.h")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("util.h"), STRING("")},
+        {FileFlag_Mul64Support,  nullptr, 0, STRING("src"), STRING("field_10x26.h"), STRING("")},
+        {FileFlag_Mul64Support,  nullptr, 0, STRING("src"), STRING("scalar_8x32.h"), STRING("")},
+        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("field_5x52.h"), STRING("")},
+        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("scalar_4x64.h"), STRING("")},
+        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("modinv64.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("hash.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("modinv32.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("assumptions.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("scalar.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("field.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("group.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_const.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_gen.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("scratch.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("precomputed_ecmult.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("precomputed_ecmult_gen.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecdsa.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("eckey.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("selftest.h"), STRING("")},
     };
 
     LoadedFile private_impl_files[] = {
-        {FileFlag_Mul64Support,  nullptr, 0, STRING("src"), STRING("field_10x26_impl.h")},
-        {FileFlag_Mul64Support,  nullptr, 0, STRING("src"), STRING("scalar_8x32_impl.h")},
-        {FileFlag_AsmInt128,     nullptr, 0, STRING("src"), STRING("field_5x52_int128_impl.h")},
-        {FileFlag_AsmX86_64,     nullptr, 0, STRING("src"), STRING("field_5x52_asm_impl.h")},
-        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("field_5x52_impl.h")},
-        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("scalar_4x64_impl.h")},
-        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("modinv64_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecdsa_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("eckey_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("group_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("field_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("scalar_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_const_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_gen_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("precomputed_ecmult.c")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("precomputed_ecmult_gen.c")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("hash_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("modinv32_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("scratch_impl.h")},
-        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("secp256k1.c")},
+        {FileFlag_Mul64Support,  nullptr, 0, STRING("src"), STRING("field_10x26_impl.h"), STRING("")},
+        {FileFlag_Mul64Support,  nullptr, 0, STRING("src"), STRING("scalar_8x32_impl.h"), STRING("")},
+        {FileFlag_AsmInt128,     nullptr, 0, STRING("src"), STRING("field_5x52_int128_impl.h"), STRING("")},
+        {FileFlag_AsmX86_64,     nullptr, 0, STRING("src"), STRING("field_5x52_asm_impl.h"), STRING("")},
+        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("field_5x52_impl.h"), STRING("")},
+        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("scalar_4x64_impl.h"), STRING("")},
+        {FileFlag_Mul128Support, nullptr, 0, STRING("src"), STRING("modinv64_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecdsa_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("eckey_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("group_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("field_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("scalar_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_const_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("ecmult_gen_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("precomputed_ecmult.c"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("precomputed_ecmult_gen.c"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("hash_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("modinv32_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("scratch_impl.h"), STRING("")},
+        {FileFlag_Normal,        nullptr, 0, STRING("src"), STRING("secp256k1.c"), STRING("")},
+    };
+
+    LoadedFile private_extra_module_impl_files[] = {
+        {FileFlag_Normal, nullptr, 0, STRING("src/modules/ecdh"), STRING("main_impl.h"), STRING("ECDH")},
+        {FileFlag_Normal, nullptr, 0, STRING("src/modules/recovery"), STRING("main_impl.h"), STRING("RECOVERY")},
+        {FileFlag_Normal, nullptr, 0, STRING("src/modules/extrakeys"), STRING("main_impl.h"), STRING("EXTRAKEYS")},
+        {FileFlag_Normal, nullptr, 0, STRING("src/modules/schnorrsig"), STRING("main_impl.h"), STRING("SCHNORRSIG")},
     };
 
     #define ARRAY_COUNT(array) sizeof(array)/sizeof((array)[0])
@@ -294,11 +324,54 @@ int main(int argc, char *argv[])
     bool        files_loaded = true;
     files_loaded &= LoadFiles(intro_files, ARRAY_COUNT(intro_files), root_dir);
     files_loaded &= LoadFiles(header_files, ARRAY_COUNT(header_files), root_dir);
+    files_loaded &= LoadFiles(extra_module_header_files, ARRAY_COUNT(extra_module_header_files), root_dir);
     files_loaded &= LoadFiles(private_header_files, ARRAY_COUNT(private_header_files), root_dir);
     files_loaded &= LoadFiles(private_impl_files, ARRAY_COUNT(private_impl_files), root_dir);
+    files_loaded &= LoadFiles(private_extra_module_impl_files, ARRAY_COUNT(private_extra_module_impl_files), root_dir);
 
     if (!files_loaded)
         return -1;
+
+    // NOTE: Patch problematic source code before code generation
+    {
+        for (LoadedFile &file : private_header_files)
+        {
+            if (StringEquals(file.name, STRING("util.h")))
+            {
+                // NOTE: Fix implicit cast from void to unsigned char C++ error
+                file.buffer = StringReplace(
+                    file.buffer,
+                    STRING("const unsigned char *p1 = s1, *p2 = s2;"),
+                    STRING("const unsigned char *p1 = (const unsigned char *)s1, *p2 = (const unsigned char *)s2;"));
+                break;
+            }
+        }
+
+        for (LoadedFile &file : private_impl_files)
+        {
+            if (StringEquals(file.name, STRING("secp256k1.c")))
+            {
+                // NOTE: Patch out module includes, we insert them manually after
+                // the main implementation file
+                file.buffer = StringFindThenInsert(file.buffer, STRING("# include \"modules"), STRING("// "));
+                break;
+            }
+        }
+
+        for (LoadedFile &file : private_extra_module_impl_files)
+        {
+            // NOTE: modules all use relative headers, so patch them out early.
+            file.buffer = StringFindThenInsert(file.buffer, STRING("#include"), STRING("// "));
+
+            if (StringEquals(file.sub_dir, STRING("src/modules/schnorrsig")) && StringEquals(file.name, STRING("main_impl.h")))
+            {
+                // NOTE: Fix implicit cast from void to unsigned char C++ error
+                file.buffer = StringReplace(file.buffer,
+                                            STRING("secp256k1_sha256_write(&sha, data, 32)"),
+                                            STRING("secp256k1_sha256_write(&sha, (const unsigned char *)data, 32)"));
+            }
+        }
+    }
 
     unsigned const BUILD_FLAGS[] = {
         FileFlag_Normal | FileFlag_Mul64Support,
@@ -306,6 +379,7 @@ int main(int argc, char *argv[])
         FileFlag_Normal | FileFlag_Mul128Support | FileFlag_AsmX86_64,
     };
 
+    // NOTE: Code generate
     for (int build_index = 0; build_index < ARRAY_COUNT(BUILD_FLAGS); build_index++)
     {
         unsigned const build_flags = BUILD_FLAGS[build_index];
@@ -362,7 +436,7 @@ int main(int argc, char *argv[])
             for (LoadedFile const &file : intro_files)
             {
                 if (build_flags & file.flag)
-                    list_tail = StringListAppendRef(list_tail, String{file.buffer, file.size});
+                    list_tail = StringListAppendRef(list_tail, file.buffer);
             }
             list_tail = StringListAppendRef(list_tail, STRING("*/\n"));
 
@@ -434,7 +508,7 @@ int main(int argc, char *argv[])
             "#endif\n"
             "\n"
             "// -----------------------------------------------------------------------------\n"
-            "// NOTE: Single Header Start\n"
+            "// NOTE: Header Start\n"
             "// -----------------------------------------------------------------------------\n"
             ));
 
@@ -456,15 +530,59 @@ int main(int argc, char *argv[])
                 if (build_flags & file.flag)
                 {
                     list_tail = AddSourceFileComment(list_tail, &file);
-                    list_tail = StringListAppendRef(list_tail, String{file.buffer, file.size});
+                    list_tail = StringListAppendRef(list_tail, file.buffer);
+                    list_tail = StringListAppendRef(list_tail, STRING("\n"));
                 }
             }
+
+            // -------------------------------------------------------------------------------------
+            // Extra Module Header files
+            // -------------------------------------------------------------------------------------
+            for (LoadedFile const &file : extra_module_header_files)
+            {
+                if (build_flags & file.flag)
+                {
+                    // NOTE: These are optional, conditionally defined based on
+                    // the ENABLE_MODULE_* macro
+                    char macro_name_buf[256];
+
+                    String macro_name = {};
+                    macro_name.str    = macro_name_buf;
+                    macro_name.size   = snprintf(macro_name_buf,
+                                                 sizeof(macro_name_buf),
+                                                 "ENABLE_MODULE_%.*s",
+                                                 file.module_macro_name.size,
+                                                 file.module_macro_name.str);
+
+                    list_tail = AddSourceFileComment(list_tail, &file);
+
+                    // NOTE: Begin the conditional macro
+                    list_tail = StringListAppendRef(list_tail, STRING("#if defined("));
+                    list_tail = StringListAppendCopy(list_tail, macro_name);
+                    list_tail = StringListAppendRef(list_tail, STRING(")\n"));
+
+                    // NOTE: Write file
+                    list_tail = StringListAppendRef(list_tail, file.buffer);
+
+                    // NOTE: End the conditional macro
+                    list_tail = StringListAppendRef(list_tail, STRING("#endif //"));
+                    list_tail = StringListAppendCopy(list_tail, macro_name);
+                    list_tail = StringListAppendRef(list_tail, STRING("\n\n"));
+                }
+            }
+
             list_tail = StringListAppendRef(list_tail, STRING("#endif // BT_SECP256K1_H\n"));
 
             // -------------------------------------------------------------------------------------
             // Add implementation defines
             // -------------------------------------------------------------------------------------
-            list_tail = StringListAppendRef(list_tail, STRING("#if defined(BT_SECP256K1_IMPLEMENTATION)\n"));
+            list_tail = StringListAppendRef(list_tail, STRING(
+            "\n"
+            "// -----------------------------------------------------------------------------\n"
+            "// NOTE: Implementation Start\n"
+            "// -----------------------------------------------------------------------------\n"
+            "#if defined(BT_SECP256K1_IMPLEMENTATION)\n"
+            ));
 
             {
                 list_tail = StringListAppendRef(list_tail, STRING("#if !defined(ECMULT_GEN_PREC_BITS)\n"));
@@ -529,7 +647,7 @@ int main(int argc, char *argv[])
                 if (build_flags & file.flag)
                 {
                     list_tail = AddSourceFileComment(list_tail, &file);
-                    list_tail = StringListAppendRef(list_tail, String{file.buffer, file.size});
+                    list_tail = StringListAppendRef(list_tail, file.buffer);
                 }
             }
 
@@ -538,7 +656,40 @@ int main(int argc, char *argv[])
                 if (build_flags & file.flag)
                 {
                     list_tail = AddSourceFileComment(list_tail, &file);
-                    list_tail = StringListAppendRef(list_tail, String{file.buffer, file.size});
+                    list_tail = StringListAppendRef(list_tail, file.buffer);
+                }
+            }
+
+            for (LoadedFile const &file : private_extra_module_impl_files)
+            {
+                if (build_flags & file.flag)
+                {
+                    // NOTE: These are optional, conditionally defined based on
+                    // the ENABLE_MODULE_* macro
+                    char macro_name_buf[256];
+
+                    String macro_name = {};
+                    macro_name.str    = macro_name_buf;
+                    macro_name.size   = snprintf(macro_name_buf,
+                                                 sizeof(macro_name_buf),
+                                                 "ENABLE_MODULE_%.*s",
+                                                 file.module_macro_name.size,
+                                                 file.module_macro_name.str);
+
+                    list_tail = AddSourceFileComment(list_tail, &file);
+
+                    // NOTE: Begin the conditional macro
+                    list_tail = StringListAppendRef(list_tail, STRING("#if defined("));
+                    list_tail = StringListAppendCopy(list_tail, macro_name);
+                    list_tail = StringListAppendRef(list_tail, STRING(")\n"));
+
+                    // NOTE: Write file
+                    list_tail = StringListAppendRef(list_tail, file.buffer);
+
+                    // NOTE: End the conditional macro
+                    list_tail = StringListAppendRef(list_tail, STRING("#endif //"));
+                    list_tail = StringListAppendCopy(list_tail, macro_name);
+                    list_tail = StringListAppendRef(list_tail, STRING("\n\n"));
                 }
             }
 
@@ -573,8 +724,10 @@ int main(int argc, char *argv[])
 
             LoadedFileList file_list[] = {
                 {header_files, ARRAY_COUNT(header_files)},
+                {extra_module_header_files, ARRAY_COUNT(extra_module_header_files)},
                 {private_header_files, ARRAY_COUNT(private_header_files)},
                 {private_impl_files, ARRAY_COUNT(private_impl_files)},
+                {private_extra_module_impl_files, ARRAY_COUNT(private_extra_module_impl_files)},
             };
 
             for (LoadedFileList const &list : file_list)
@@ -605,15 +758,8 @@ int main(int argc, char *argv[])
 
         // NOTE: Misc patches to source code
         {
-            // NOTE: Patch one problematic line that causes a compile failure in
-            // C++ (but not C, since this a C library).
-            buffer = StringReplace(
-                buffer,
-                STRING("const unsigned char *p1 = s1, *p2 = s2;"),
-                STRING("const unsigned char *p1 = (const unsigned char *)s1, *p2 = (const unsigned char *)s2;"));
-
             // NOTE: Delete any Windows style new-lines if there were any
-            buffer = StringReplace(buffer, STRING("\r"), STRING(""));
+            // buffer = StringReplace(buffer, STRING("\r"), STRING(""));
         }
 
         // NOTE: Output file
