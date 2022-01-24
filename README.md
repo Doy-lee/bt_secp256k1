@@ -1,8 +1,9 @@
-# Blockchain Tools - secp256k1 (bt\_secp256k1)
+# bt\_secp256k1 (Blockchain Tools - secp256k1)
 
-A code-generated single file header for bitcoin-core/secp256k1, an optimized
-C library for ECDSA signatures and secret/public key operations on curve
-secp256k1.
+A code-generated single file header for
+[bitcoin-core/secp256k1](https://github.com/bitcoin-core/secp256k1), an
+optimized C library for ECDSA signatures and secret/public key operations on
+curve secp256k1.
 
 ## Using bt\_secp256k1
 
@@ -24,8 +25,6 @@ definitive explanations).
 
 ```cpp
 #define BT_SECP256K1_IMPLEMENTATION
-// NOTE: The 2 following defines are optional! We provide a default value if
-// these are not defined before the implementation
 #define ECMULT_GEN_PREC_BITS 4
 #define ECMULT_WINDOW_SIZE 15
 #include "bt_secp256k1_i64.h"
@@ -40,17 +39,29 @@ combined into a single header file, generating the output files.
 The code generated header files vendored in the repository correspond to the
 current commit hash checked out from the secp256k1 submodule.
 
-The single file header code-generator metaprogram is provided under the
-Unlicense license.
-
 An example program `bt_secp256k1_example.c` is provided that implements a basic
 secp256k1 keypair generator for reference and testing the single header file
 compilation.
 
+## Build
+
+The build is currently tested on Windows Visual Studio 2019's `cl` via
+`build.bat` which will build the metaprogram and generate the single header
+files.
+
+Examples are built using `build_examples.bat` and optionally invoke `clang-cl`
+if it's available on the path.
+
 ## License
+
+The single file header code-generator metaprogram is provided under the
+Unlicense license.
 
 This is free and unencumbered software released into the public domain.
 
 Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
 software, either in source code form or as a compiled binary, for any purpose,
 commercial or non-commercial, and by any means.
+
+bitcoin-core/secp256k1 is provided under its original license and is embedded in
+the single-file-header.

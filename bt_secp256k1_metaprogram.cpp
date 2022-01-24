@@ -465,11 +465,16 @@ int main(int argc, char *argv[])
             "// NOTE: Example\n"
             "// -----------------------------------------------------------------------------\n"
             "#if 0\n"
-            "#define BT_SECP256K1_IMPLEMENTATION\n"
             "// NOTE: The 2 following defines are optional! We provide a default value if\n"
             "// these are not defined before the implementation\n"
             "#define ECMULT_GEN_PREC_BITS 4\n"
             "#define ECMULT_WINDOW_SIZE 15\n"
+            "// NOTE: The module defines are optional! They expose optional secp256k1 modules API\n"
+            "#define ENABLE_MODULE_ECDH\n"
+            "#define ENABLE_MODULE_RECOVERY\n"
+            "#define ENABLE_MODULE_EXTRAKEYS\n"
+            "#define ENABLE_MODULE_SCHNORRSIG\n"
+            "#define BT_SECP256K1_IMPLEMENTATION\n"
             "#include \""
             ));
 
