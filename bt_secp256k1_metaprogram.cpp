@@ -369,6 +369,16 @@ int main(int argc, char *argv[])
                 file.buffer = StringReplace(file.buffer,
                                             STRING("secp256k1_sha256_write(&sha, data, 32)"),
                                             STRING("secp256k1_sha256_write(&sha, (const unsigned char *)data, 32)"));
+
+                // NOTE: C++ requires that a string array initialised by a literal has a space for the null-terminator
+                file.buffer = StringReplace(file.buffer,
+                                            STRING("unsigned char bip340_algo[13] ="),
+                                            STRING("unsigned char bip340_algo[13 + 1] ="));
+
+                // NOTE: Code that relied on sizeof(bip340_algo) must be adjusted to account for the null-terminator now
+                file.buffer = StringReplace(file.buffer,
+                                            STRING("sizeof(bip340_algo)"),
+                                            STRING("(sizeof(bip340_algo) - 1)"));
             }
         }
     }
@@ -759,7 +769,7 @@ int main(int argc, char *argv[])
         // NOTE: Misc patches to source code
         {
             // NOTE: Delete any Windows style new-lines if there were any
-            // buffer = StringReplace(buffer, STRING("\r"), STRING(""));
+            buffer = StringReplace(buffer, STRING("\r"), STRING(""));
         }
 
         // NOTE: Output file
