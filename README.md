@@ -8,15 +8,8 @@ curve secp256k1.
 ## Using bt\_secp256k1
 
 The header files are generated from a metaprogram that is included in this
-repository. To use the library you only need 1 header file of which, 3 variants
-are provided,
-
-- bt\_secp256k1\_i64.h (USE\_FORCE\_WIDEMUL\_INT64 is defined)
-- bt\_secp256k1\_i128.h (USE\_FORCE\_WIDEMUL\_IN128 is defined)
-- bt\_secp256k1\_i128\_x86\_64\_asm.h (USE\_FORCE\_WIDEMUL\_IN128 & USE\_ASM\_X86\_64 is defined)
-
-Given the 3 variants, for optimal performance choose the most featureful variant
-that your platform supports.
+repository. To use the library you only need to include the header file
+`bt_secp256k1.h`.
 
 In exactly one `.c` or `.cpp` file that includes `bt_secp256k1.h` define
 `BT_SECP256K1_IMPLEMENTATION` as per follows (with additional options to
@@ -27,7 +20,7 @@ definitive explanations).
 #define BT_SECP256K1_IMPLEMENTATION
 #define ECMULT_GEN_PREC_BITS 4
 #define ECMULT_WINDOW_SIZE 15
-#include "bt_secp256k1_i64.h"
+#include "bt_secp256k1.h"
 ```
 
 ## Details
